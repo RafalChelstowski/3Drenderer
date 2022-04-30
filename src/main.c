@@ -79,6 +79,19 @@ void update(void)
 {
 }
 
+void draw_rect(int x, int y, int width, int height, u_int32_t color)
+{
+    for (int i = 0; i < width; i++)
+    {
+        for (int j = 0; j < height; j++)
+        {
+            int current_x = x + i;
+            int current_y = y + j;
+            color_buffer[(window_width * current_y) + current_x] = color;
+        }
+    }
+}
+
 void render_color_buffer(void)
 {
     SDL_UpdateTexture(color_buffer_texture, NULL, color_buffer, (int)(window_width * sizeof(uint32_t)));
@@ -101,8 +114,9 @@ void render(void)
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    render_color_buffer();
+    draw_rect(300, 200, 300, 150, 0xFFFF00FF);
 
+    render_color_buffer();
     clear_color_buffer(0xFFFFFF00);
 
     SDL_RenderPresent(renderer);
