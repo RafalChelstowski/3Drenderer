@@ -6,6 +6,7 @@
 #include "display.h"
 #include "vector.h"
 #include "matrix.h"
+#include "light.h"
 #include "mesh.h"
 
 triangle_t *triangles_to_render = NULL;
@@ -21,10 +22,13 @@ void setup(void)
     render_method = RENDER_WIRE;
     cull_method = CULL_BACKFACE;
 
+    // allocate required mem in bytes to hold the color buffer
     color_buffer = (uint32_t *)malloc(sizeof(uint32_t) * window_width * window_height);
 
+    // create SDL texture that is used to display color buffer
     color_buffer_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, window_width, window_height);
 
+    // initialize the perspective projection matrix
     float fov = M_PI / 3.0;
     float aspect = (float)window_height / (float)window_width;
     float znear = 0.1;
@@ -32,9 +36,10 @@ void setup(void)
 
     proj_matrix = mat4_make_perspective(fov, aspect, znear, zfar);
 
-    load_cube_mesh_data();
+    // loads vertex and face values for the mesh data structure
+    // load_cube_mesh_data();
 
-    // load_obj_file_data("./assets/cube.obj");
+    load_obj_file_data("./assets/f22.obj");
 }
 
 void process_input(void)
@@ -67,6 +72,7 @@ void process_input(void)
     }
 }
 
+// update function frame by frame with fixed time step
 void update(void)
 {
     int time_to_wait = FRAME_TARGET_TIME - (SDL_GetTicks() - previous_frame_time);
@@ -78,21 +84,23 @@ void update(void)
 
     previous_frame_time = SDL_GetTicks();
 
+    // initilize the array of triangles to render
     triangles_to_render = NULL;
 
+    // change the mesh scale, rotation and translation values per animation frame
     mesh.rotation.x += 0.01;
     mesh.rotation.y += 0.01;
     mesh.rotation.z += 0.01;
-    // mesh.scale.x += 0.002;
-    // mesh.translation.x += 0.01;
     mesh.translation.z = 5.0;
 
+    // create scale, rotation and translation matrices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
     mat4_t translation_matrix = mat4_make_translation(mesh.translation.x, mesh.translation.y, mesh.translation.z);
     mat4_t rotation_matrix_x = mat4_make_rotation_x(mesh.rotation.x);
     mat4_t rotation_matrix_y = mat4_make_rotation_y(mesh.rotation.y);
     mat4_t rotation_matrix_z = mat4_make_rotation_z(mesh.rotation.z);
 
+    // loop all triangles of the mesh
     int num_faces = array_length(mesh.faces);
     for (int i = 0; i < num_faces; i++)
     {
@@ -105,38 +113,54 @@ void update(void)
 
         vec4_t transformed_vertices[3];
 
+        // loop all three vertices of current face and apply transforms
         for (int j = 0; j < 3; j++)
         {
             vec4_t transformed_vertex = vec4_from_vec3(face_vertices[j]);
 
+            // create world matrix combining scale, rotation and translation matrices
             mat4_t world_matrix = mat4_identity();
+
+            // order: first scale, than rotate, than translate
             world_matrix = mat4_t_mul_mat4(scale_matrix, world_matrix);
             world_matrix = mat4_t_mul_mat4(rotation_matrix_z, world_matrix);
             world_matrix = mat4_t_mul_mat4(rotation_matrix_y, world_matrix);
             world_matrix = mat4_t_mul_mat4(rotation_matrix_x, world_matrix);
             world_matrix = mat4_t_mul_mat4(translation_matrix, world_matrix);
 
+            // multiplying the world matrix by original vector
             transformed_vertex = mat4_t_mul_vec4(world_matrix, transformed_vertex);
 
+            // save transformed vertex to array of transformed vertices
             transformed_vertices[j] = transformed_vertex;
         }
 
+        // Backface culling to toest if current face should be projected
+        // if (cull_method == CULL_BACKFACE)
+
+        vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]); /*    A   */
+        vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]); /*   / \  */
+        vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]); /*  B---C */
+
+        // get vector substractions of A-B and A-C
+        vec3_t vector_ab = vec3_sub(vector_b, vector_a);
+        vec3_t vector_ac = vec3_sub(vector_c, vector_a);
+        vec3_normalize(&vector_ab);
+        vec3_normalize(&vector_ac);
+
+        // compute the face normal (cross product to find perpendicular vector)
+        vec3_t normal = vec3_cross(vector_ab, vector_ac);
+        vec3_normalize(&normal);
+
+        // find the vector between a point in the triangle (A) and the camera position
+        vec3_t camera_ray = vec3_sub(camera_position, vector_a);
+
+        // calculate how aligned is the camera ray to the face normal using dot-product
+        float dot_normal_camera = vec3_dot(normal, camera_ray);
+
         if (cull_method == CULL_BACKFACE)
         {
-            vec3_t vector_a = vec3_from_vec4(transformed_vertices[0]);
-            vec3_t vector_b = vec3_from_vec4(transformed_vertices[1]);
-            vec3_t vector_c = vec3_from_vec4(transformed_vertices[2]);
-            vec3_t vector_ab = vec3_sub(vector_b, vector_a);
-            vec3_t vector_ac = vec3_sub(vector_c, vector_a);
-            vec3_normalize(&vector_ab);
-            vec3_normalize(&vector_ac);
-            vec3_t normal = vec3_cross(vector_ab, vector_ac);
-
-            vec3_normalize(&normal);
-
-            vec3_t camera_ray = vec3_sub(camera_position, vector_a);
-            float dot_normal_camera = vec3_dot(normal, camera_ray);
-
+            // bypass triangles that are looking away from the camera
             if (dot_normal_camera < 0)
             {
                 continue;
@@ -145,25 +169,37 @@ void update(void)
 
         vec4_t projected_points[3];
 
+        // loop all three vertices of current face and project them to 2D screen coordinates
         for (int j = 0; j < 3; j++)
         {
+            // project the current vertex
             projected_points[j] = mat4_mul_vec4_project(proj_matrix, transformed_vertices[j]);
 
+            // scale to the current view
             projected_points[j].x *= (window_width / 2.0);
             projected_points[j].y *= (window_height / 2.0);
 
+            // translate to the center of the screen
             projected_points[j].x += (window_width / 2.0);
             projected_points[j].y += (window_height / 2.0);
         }
 
+        // calculate avg depth for each face based on the vertices after transformation
         float avg_depth = (transformed_vertices[0].z + transformed_vertices[1].z + transformed_vertices[2].z) / 3.0;
+
+        // calculate the shade intensity based on how aligned is the face normal and the light ray direction
+        float light_intensity_factor = -vec3_dot(normal, light.direction);
+
+        // calculate triangle color based on light angle
+        uint32_t triangle_color = light_apply_intensity(mesh_face.color, light_intensity_factor);
 
         triangle_t projected_triangle = {
             .points = {
                 {projected_points[0].x, projected_points[0].y}, {projected_points[1].x, projected_points[1].y}, {projected_points[2].x, projected_points[2].y}},
-            .color = mesh_face.color,
+            .color = triangle_color,
             .avg_depth = avg_depth};
 
+        // save projected triangle to the array of triangles to render
         array_push(triangles_to_render, projected_triangle);
     }
 
