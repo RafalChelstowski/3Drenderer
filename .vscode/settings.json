@@ -1,7 +1,12 @@
 {
   "files.associations": {
     "complex": "c",
-    "light.h": "c"
+    "light.h": "c",
+    "texture.h": "c"
   },
-  "cSpell.words": ["zfar", "znear"]
+  "cSpell.words": [
+    "texcoords",
+    "zfar",
+    "znear"
+  ]
 }
