@@ -8,6 +8,7 @@
 #include "vector.h"
 #include "matrix.h"
 #include "light.h"
+#include "camera.h"
 #include "triangle.h"
 #include "texture.h"
 #include "mesh.h"
@@ -16,15 +17,17 @@
 triangle_t triangles_to_render[MAX_TRIANGLES_PER_MESH];
 int num_triangles_to_render = 0;
 
-vec3_t camera_position = {0, 0, 0};
+mat4_t world_matrix;
 mat4_t proj_matrix;
+mat4_t view_matrix;
 
 bool is_running = false;
 int previous_frame_time = 0;
+float delta_time = 0;
 
 void setup(void)
 {
-    render_method = RENDER_WIRE;
+    render_method = RENDER_TEXTURED;
     cull_method = CULL_BACKFACE;
 
     // allocate required mem in bytes to hold the color buffer and z buffer
@@ -91,16 +94,28 @@ void update(void)
         SDL_Delay(time_to_wait);
     }
 
+    // get delta time converted to seconds
+    delta_time = (SDL_GetTicks() - previous_frame_time) / 1000.0;
+
     previous_frame_time = SDL_GetTicks();
 
     // initilize the counter of triangles to render for the current frame
     num_triangles_to_render = 0;
 
     // change the mesh scale, rotation and translation values per animation frame
-    mesh.rotation.x += 0.01;
-    mesh.rotation.y += 0.01;
-    mesh.rotation.z += 0.01;
+    mesh.rotation.x += 0.6 * delta_time;
+    mesh.rotation.y += 0.6 * delta_time;
+    mesh.rotation.z += 0.6 * delta_time;
     mesh.translation.z = 5.0;
+
+    // change camera position frame by frame
+    camera.position.x += 0.6 * delta_time;
+    camera.position.y += 0.6 * delta_time;
+
+    // create a view matrix
+    vec3_t target = {0, 0, 4.0};
+    vec3_t up_direction = {0, 1, 0};
+    view_matrix = mat4_look_at(camera.position, target, up_direction);
 
     // create scale, rotation and translation matrices
     mat4_t scale_matrix = mat4_make_scale(mesh.scale.x, mesh.scale.y, mesh.scale.z);
@@ -127,8 +142,8 @@ void update(void)
         {
             vec4_t transformed_vertex = vec4_from_vec3(face_vertices[j]);
 
-            // create world matrix combining scale, rotation and translation matrices
-            mat4_t world_matrix = mat4_identity();
+            // update world matrix combining scale, rotation and translation matrices
+            world_matrix = mat4_identity();
 
             // order: first scale, than rotate, than translate
             world_matrix = mat4_t_mul_mat4(scale_matrix, world_matrix);
@@ -139,6 +154,9 @@ void update(void)
 
             // multiplying the world matrix by original vector
             transformed_vertex = mat4_t_mul_vec4(world_matrix, transformed_vertex);
+
+            // multiply the view matrix by the transformed vertex
+            transformed_vertex = mat4_t_mul_vec4(view_matrix, transformed_vertex);
 
             // save transformed vertex to array of transformed vertices
             transformed_vertices[j] = transformed_vertex;
@@ -161,8 +179,10 @@ void update(void)
         vec3_t normal = vec3_cross(vector_ab, vector_ac);
         vec3_normalize(&normal);
 
+        vec3_t origin = {0, 0, 0};
+
         // find the vector between a point in the triangle (A) and the camera position
-        vec3_t camera_ray = vec3_sub(camera_position, vector_a);
+        vec3_t camera_ray = vec3_sub(origin, vector_a);
 
         // calculate how aligned is the camera ray to the face normal using dot-product
         float dot_normal_camera = vec3_dot(normal, camera_ray);
