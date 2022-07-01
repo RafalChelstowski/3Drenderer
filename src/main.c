@@ -12,7 +12,9 @@
 #include "texture.h"
 #include "mesh.h"
 
-triangle_t *triangles_to_render = NULL;
+#define MAX_TRIANGLES_PER_MESH 10000
+triangle_t triangles_to_render[MAX_TRIANGLES_PER_MESH];
+int num_triangles_to_render = 0;
 
 vec3_t camera_position = {0, 0, 0};
 mat4_t proj_matrix;
@@ -33,7 +35,7 @@ void setup(void)
     color_buffer_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, window_width, window_height);
 
     // initialize the perspective projection matrix
-    float fov = M_PI / 1.5;
+    float fov = M_PI / 2;
     float aspect = (float)window_height / (float)window_width;
     float znear = 0.1;
     float zfar = 100.0;
@@ -91,8 +93,8 @@ void update(void)
 
     previous_frame_time = SDL_GetTicks();
 
-    // initilize the array of triangles to render
-    triangles_to_render = NULL;
+    // initilize the counter of triangles to render for the current frame
+    num_triangles_to_render = 0;
 
     // change the mesh scale, rotation and translation values per animation frame
     mesh.rotation.x += 0.01;
@@ -213,7 +215,12 @@ void update(void)
             .color = triangle_color};
 
         // save projected triangle to the array of triangles to render
-        array_push(triangles_to_render, projected_triangle);
+        // array_push(triangles_to_render, projected_triangle);
+        if (num_triangles_to_render < MAX_TRIANGLES_PER_MESH)
+        {
+            triangles_to_render[num_triangles_to_render] = projected_triangle;
+            num_triangles_to_render++;
+        }
     }
 }
 
@@ -221,8 +228,8 @@ void render(void)
 {
     draw_grid();
 
-    int num_triangles = array_length(triangles_to_render);
-    for (int i = 0; i < num_triangles; i++)
+    // loop all projected triangles
+    for (int i = 0; i < num_triangles_to_render; i++)
     {
         triangle_t triangle = triangles_to_render[i];
 
@@ -259,8 +266,6 @@ void render(void)
             draw_rect(triangle.points[2].x - 3, triangle.points[2].y - 3, 6, 6, 0xFFFF0000);
         }
     }
-
-    array_free(triangles_to_render);
 
     render_color_buffer();
 
