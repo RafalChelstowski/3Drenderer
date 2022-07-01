@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <SDL2/SDL.h>
+#include "upng.h"
 #include "array.h"
 #include "display.h"
 #include "vector.h"
@@ -28,7 +29,7 @@ void setup(void)
     color_buffer = (uint32_t *)malloc(sizeof(uint32_t) * window_width * window_height);
 
     // create SDL texture that is used to display color buffer
-    color_buffer_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, window_width, window_height);
+    color_buffer_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, window_width, window_height);
 
     // initialize the perspective projection matrix
     float fov = M_PI / 1.5;
@@ -38,15 +39,13 @@ void setup(void)
 
     proj_matrix = mat4_make_perspective(fov, aspect, znear, zfar);
 
-    // manualy load hardcoded texture data
-    mesh_texture = (uint32_t *)REDBRICK_TEXTURE;
-    texture_width = 64;
-    texture_height = 64;
-
     // loads vertex and face values for the mesh data structure
-    load_cube_mesh_data();
+    // load_cube_mesh_data();
 
+    load_obj_file_data("./assets/cube.obj");
     // load_obj_file_data("./assets/f22.obj");
+
+    load_png_texture_data("./assets/cube.png");
 }
 
 void process_input(void)
@@ -291,6 +290,7 @@ void render(void)
 void free_resources(void)
 {
     free(color_buffer);
+    upng_free(png_texture);
     array_free(mesh.faces);
     array_free(mesh.vertices);
 }
