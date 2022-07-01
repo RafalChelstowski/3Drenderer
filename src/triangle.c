@@ -118,7 +118,7 @@ void draw_texel(
     float interpolated_v;
     float interpolated_reciprocal_w;
 
-    // perform the interpolation of a;; U/w and V/w using baricentric weights and a factor of 1/w
+    // perform the interpolation of a;; U/w and V/w using barycentric weights and a factor of 1/w
     interpolated_u = (a_uv.u / point_a.w) * alpha + (b_uv.u / point_b.w) * beta + (c_uv.u / point_c.w) * gamma;
     interpolated_v = (a_uv.v / point_a.w) * alpha + (b_uv.v / point_b.w) * beta + (c_uv.v / point_c.w) * gamma;
 
@@ -133,7 +133,17 @@ void draw_texel(
     int tex_x = abs((int)(interpolated_u * texture_width)) % texture_width;
     int tex_y = abs((int)(interpolated_v * texture_height)) % texture_height;
 
-    draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
+    // adjust 1/w so the pixels that are closer to the camera have smaller values
+    interpolated_reciprocal_w = 1.0 - interpolated_reciprocal_w;
+
+    // only draw pixel if value is less than previously stored in z-buffer
+    if (interpolated_reciprocal_w < z_buffer[(window_width * y) + x])
+    {
+        draw_pixel(x, y, texture[(texture_width * tex_y) + tex_x]);
+
+        // update the z-buffer with the interpolated value of 1/w
+        z_buffer[(window_width * y) + x] = interpolated_reciprocal_w;
+    }
 }
 
 void draw_textured_triangle(
