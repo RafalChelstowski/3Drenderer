@@ -40,12 +40,8 @@ void setup(void)
     proj_matrix = mat4_make_perspective(fov, aspect, znear, zfar);
 
     // loads vertex and face values for the mesh data structure
-    // load_cube_mesh_data();
-
-    load_obj_file_data("./assets/cube.obj");
-    // load_obj_file_data("./assets/f22.obj");
-
-    load_png_texture_data("./assets/cube.png");
+    load_obj_file_data("./assets/f22.obj");
+    load_png_texture_data("./assets/f22.png");
 }
 
 void process_input(void)
