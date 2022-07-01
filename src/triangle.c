@@ -173,6 +173,11 @@ void draw_textured_triangle(
         float_swap(&v0, &v1);
     }
 
+    // flip the v component to account for inverted UC=coordinates
+    v0 = 1.0 - v0;
+    v1 = 1.0 - v1;
+    v2 = 1.0 - v2;
+
     // create vector points and tex coordinates after sort
 
     vec4_t point_a = {x0, y0, z0, w0};
